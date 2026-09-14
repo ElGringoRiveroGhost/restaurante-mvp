@@ -25,6 +25,7 @@ app.secret_key = os.environ.get(
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url and database_url.startswith("postgres://"):
+
     database_url = database_url.replace(
         "postgres://",
         "postgresql+psycopg://",
@@ -32,6 +33,7 @@ if database_url and database_url.startswith("postgres://"):
     )
 
 elif database_url and database_url.startswith("postgresql://"):
+
     database_url = database_url.replace(
         "postgresql://",
         "postgresql+psycopg://",
@@ -48,25 +50,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 
 db = SQLAlchemy(app)
-
-
-# ============================================================
-# PRODUCTOS
-# ============================================================
-
-PRODUCTS = {
-
-    1: {
-        "name": "Sándwich de Milanesa",
-        "price": 20.00
-    },
-
-    2: {
-        "name": "Choripán",
-        "price": 18.00
-    },
-
-}
 
 
 # ============================================================
@@ -106,6 +89,87 @@ ORDER_STATUSES = {
     }
 
 }
+
+
+# ============================================================
+# MODELO PRODUCTO
+# ============================================================
+
+class Product(db.Model):
+
+    __tablename__ = "products"
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    name = db.Column(
+        db.String(150),
+        nullable=False,
+        unique=True
+    )
+
+    price = db.Column(
+        db.Numeric(10, 2),
+        nullable=False,
+        default=0
+    )
+
+    active = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+
+# ============================================================
+# MODELO INGREDIENTE
+# ============================================================
+
+class Ingredient(db.Model):
+
+    __tablename__ = "ingredients"
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    name = db.Column(
+        db.String(150),
+        nullable=False,
+        unique=True
+    )
+
+    unit = db.Column(
+        db.String(30),
+        nullable=False
+    )
+
+    stock = db.Column(
+        db.Numeric(12, 3),
+        nullable=False,
+        default=0
+    )
+
+    minimum_stock = db.Column(
+        db.Numeric(12, 3),
+        nullable=False,
+        default=0
+    )
+
+    cost = db.Column(
+        db.Numeric(12, 2),
+        nullable=False,
+        default=0
+    )
+
+    active = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
 
 
 # ============================================================
@@ -220,6 +284,62 @@ with app.app_context():
 
 
 # ============================================================
+# PRODUCTOS INICIALES
+# ============================================================
+
+def inicializar_productos():
+
+    productos_iniciales = [
+
+        {
+            "id": 1,
+            "name": "Sándwich de Milanesa",
+            "price": 20.00
+        },
+
+        {
+            "id": 2,
+            "name": "Choripán",
+            "price": 18.00
+        }
+
+    ]
+
+
+    for data in productos_iniciales:
+
+        product = db.session.get(
+            Product,
+            data["id"]
+        )
+
+
+        if not product:
+
+            product = Product(
+
+                id=data["id"],
+
+                name=data["name"],
+
+                price=data["price"],
+
+                active=True
+
+            )
+
+            db.session.add(product)
+
+
+    db.session.commit()
+
+
+with app.app_context():
+
+    inicializar_productos()
+
+
+# ============================================================
 # CONVERTIR PEDIDO A DICCIONARIO
 # ============================================================
 
@@ -228,6 +348,7 @@ def order_to_dict(order):
     items = OrderItem.query.filter_by(
         order_id=order.id
     ).all()
+
 
     return {
 
@@ -281,9 +402,19 @@ def order_to_dict(order):
 @app.route("/")
 def index():
 
+    products = Product.query.filter_by(
+        active=True
+    ).order_by(
+        Product.id
+    ).all()
+
+
     return render_template(
+
         "pedido.html",
-        products=PRODUCTS
+
+        products=products
+
     )
 
 
@@ -320,10 +451,6 @@ def crear_pedido():
     ).strip()
 
 
-    # --------------------------------------------------------
-    # VALIDACIONES
-    # --------------------------------------------------------
-
     if not name or not phone:
 
         flash(
@@ -335,19 +462,20 @@ def crear_pedido():
         )
 
 
-    # --------------------------------------------------------
-    # PRODUCTOS
-    # --------------------------------------------------------
+    products = Product.query.filter_by(
+        active=True
+    ).all()
+
 
     items = []
 
     total = 0
 
 
-    for product_id, product in PRODUCTS.items():
+    for product in products:
 
         qty_raw = request.form.get(
-            f"qty_{product_id}",
+            f"qty_{product.id}",
             "0"
         )
 
@@ -366,21 +494,20 @@ def crear_pedido():
 
         if qty:
 
-            subtotal = (
-                qty *
-                product["price"]
-            )
+            price = float(product.price)
+
+            subtotal = qty * price
 
 
             items.append({
 
-                "product_id": product_id,
+                "product_id": product.id,
 
-                "name": product["name"],
+                "name": product.name,
 
                 "qty": qty,
 
-                "price": product["price"],
+                "price": price,
 
                 "subtotal": subtotal
 
@@ -389,10 +516,6 @@ def crear_pedido():
 
             total += subtotal
 
-
-    # --------------------------------------------------------
-    # VALIDAR PRODUCTOS
-    # --------------------------------------------------------
 
     if not items:
 
@@ -404,10 +527,6 @@ def crear_pedido():
             url_for("index")
         )
 
-
-    # --------------------------------------------------------
-    # CREAR PEDIDO
-    # --------------------------------------------------------
 
     order = Order(
 
@@ -433,10 +552,6 @@ def crear_pedido():
     db.session.flush()
 
 
-    # --------------------------------------------------------
-    # CREAR DETALLE
-    # --------------------------------------------------------
-
     for item in items:
 
         order_item = OrderItem(
@@ -458,16 +573,8 @@ def crear_pedido():
         db.session.add(order_item)
 
 
-    # --------------------------------------------------------
-    # GUARDAR
-    # --------------------------------------------------------
-
     db.session.commit()
 
-
-    # --------------------------------------------------------
-    # CONFIRMACIÓN
-    # --------------------------------------------------------
 
     return render_template(
 
@@ -523,10 +630,6 @@ def cambiar_estado(order_id):
     )
 
 
-    # --------------------------------------------------------
-    # VERIFICAR PEDIDO
-    # --------------------------------------------------------
-
     if not order:
 
         flash(
@@ -538,18 +641,10 @@ def cambiar_estado(order_id):
         )
 
 
-    # --------------------------------------------------------
-    # NUEVO ESTADO
-    # --------------------------------------------------------
-
     new_status = request.form.get(
         "status"
     )
 
-
-    # --------------------------------------------------------
-    # VALIDAR ESTADO
-    # --------------------------------------------------------
 
     if new_status not in ORDER_STATUSES:
 
@@ -561,10 +656,6 @@ def cambiar_estado(order_id):
             url_for("pedidos")
         )
 
-
-    # --------------------------------------------------------
-    # ACTUALIZAR
-    # --------------------------------------------------------
 
     order.status = new_status
 
@@ -578,6 +669,359 @@ def cambiar_estado(order_id):
 
     return redirect(
         url_for("pedidos")
+    )
+
+
+# ============================================================
+# PRODUCTOS
+# ============================================================
+
+@app.route("/productos")
+def productos():
+
+    products = Product.query.order_by(
+        Product.id
+    ).all()
+
+
+    return render_template(
+
+        "productos.html",
+
+        products=products
+
+    )
+
+
+# ============================================================
+# CREAR PRODUCTO
+# ============================================================
+
+@app.post("/productos/nuevo")
+def nuevo_producto():
+
+    name = request.form.get(
+        "name",
+        ""
+    ).strip()
+
+    price_raw = request.form.get(
+        "price",
+        "0"
+    )
+
+
+    if not name:
+
+        flash(
+            "El nombre del producto es obligatorio."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+
+    try:
+
+        price = float(price_raw)
+
+    except ValueError:
+
+        flash(
+            "El precio no es válido."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+
+    if price < 0:
+
+        flash(
+            "El precio no puede ser negativo."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+
+    existing = Product.query.filter_by(
+        name=name
+    ).first()
+
+
+    if existing:
+
+        flash(
+            "Ya existe un producto con ese nombre."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+
+    product = Product(
+
+        name=name,
+
+        price=price,
+
+        active=True
+
+    )
+
+
+    db.session.add(product)
+
+    db.session.commit()
+
+
+    flash(
+        f"Producto '{name}' creado correctamente."
+    )
+
+
+    return redirect(
+        url_for("productos")
+    )
+
+
+# ============================================================
+# ACTIVAR / DESACTIVAR PRODUCTO
+# ============================================================
+
+@app.post("/productos/<int:product_id>/estado")
+def estado_producto(product_id):
+
+    product = db.session.get(
+        Product,
+        product_id
+    )
+
+
+    if not product:
+
+        flash(
+            "El producto no existe."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+
+    product.active = not product.active
+
+    db.session.commit()
+
+
+    estado = (
+        "activado"
+        if product.active
+        else "desactivado"
+    )
+
+
+    flash(
+        f"Producto '{product.name}' {estado}."
+    )
+
+
+    return redirect(
+        url_for("productos")
+    )
+
+
+# ============================================================
+# INGREDIENTES
+# ============================================================
+
+@app.route("/ingredientes")
+def ingredientes():
+
+    ingredients = Ingredient.query.order_by(
+        Ingredient.name
+    ).all()
+
+
+    return render_template(
+
+        "ingredientes.html",
+
+        ingredients=ingredients
+
+    )
+
+
+# ============================================================
+# CREAR INGREDIENTE
+# ============================================================
+
+@app.post("/ingredientes/nuevo")
+def nuevo_ingrediente():
+
+    name = request.form.get(
+        "name",
+        ""
+    ).strip()
+
+    unit = request.form.get(
+        "unit",
+        ""
+    ).strip()
+
+    stock_raw = request.form.get(
+        "stock",
+        "0"
+    )
+
+    minimum_raw = request.form.get(
+        "minimum_stock",
+        "0"
+    )
+
+    cost_raw = request.form.get(
+        "cost",
+        "0"
+    )
+
+
+    if not name or not unit:
+
+        flash(
+            "Nombre y unidad son obligatorios."
+        )
+
+        return redirect(
+            url_for("ingredientes")
+        )
+
+
+    try:
+
+        stock = float(stock_raw)
+
+        minimum_stock = float(minimum_raw)
+
+        cost = float(cost_raw)
+
+    except ValueError:
+
+        flash(
+            "Los valores numéricos no son válidos."
+        )
+
+        return redirect(
+            url_for("ingredientes")
+        )
+
+
+    if stock < 0 or minimum_stock < 0 or cost < 0:
+
+        flash(
+            "Los valores no pueden ser negativos."
+        )
+
+        return redirect(
+            url_for("ingredientes")
+        )
+
+
+    existing = Ingredient.query.filter_by(
+        name=name
+    ).first()
+
+
+    if existing:
+
+        flash(
+            "Ya existe un ingrediente con ese nombre."
+        )
+
+        return redirect(
+            url_for("ingredientes")
+        )
+
+
+    ingredient = Ingredient(
+
+        name=name,
+
+        unit=unit,
+
+        stock=stock,
+
+        minimum_stock=minimum_stock,
+
+        cost=cost,
+
+        active=True
+
+    )
+
+
+    db.session.add(ingredient)
+
+    db.session.commit()
+
+
+    flash(
+        f"Ingrediente '{name}' creado correctamente."
+    )
+
+
+    return redirect(
+        url_for("ingredientes")
+    )
+
+
+# ============================================================
+# ACTIVAR / DESACTIVAR INGREDIENTE
+# ============================================================
+
+@app.post("/ingredientes/<int:ingredient_id>/estado")
+def estado_ingrediente(ingredient_id):
+
+    ingredient = db.session.get(
+        Ingredient,
+        ingredient_id
+    )
+
+
+    if not ingredient:
+
+        flash(
+            "El ingrediente no existe."
+        )
+
+        return redirect(
+            url_for("ingredientes")
+        )
+
+
+    ingredient.active = not ingredient.active
+
+    db.session.commit()
+
+
+    estado = (
+        "activado"
+        if ingredient.active
+        else "desactivado"
+    )
+
+
+    flash(
+        f"Ingrediente '{ingredient.name}' {estado}."
+    )
+
+
+    return redirect(
+        url_for("ingredientes")
     )
 
 
