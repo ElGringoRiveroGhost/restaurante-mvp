@@ -225,32 +225,48 @@
 
                             <td class="text-end">
 
-                                <form
-                                    method="POST"
-                                    action="/productos/{{ product.id }}/estado"
-                                >
+                                <div class="d-flex justify-content-end gap-2 flex-wrap">
 
-                                    {% if product.active %}
+                                    <!-- RECETA -->
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-sm btn-outline-danger"
-                                        >
-                                            Desactivar
-                                        </button>
+                                    <a
+                                        href="{{ url_for('receta_producto', product_id=product.id) }}"
+                                        class="btn btn-sm btn-outline-primary"
+                                    >
+                                        🧾 Receta
+                                    </a>
 
-                                    {% else %}
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-sm btn-outline-success"
-                                        >
-                                            Activar
-                                        </button>
+                                    <!-- ACTIVAR / DESACTIVAR -->
 
-                                    {% endif %}
+                                    <form
+                                        method="POST"
+                                        action="/productos/{{ product.id }}/estado"
+                                    >
 
-                                </form>
+                                        {% if product.active %}
+
+                                            <button
+                                                type="submit"
+                                                class="btn btn-sm btn-outline-danger"
+                                            >
+                                                Desactivar
+                                            </button>
+
+                                        {% else %}
+
+                                            <button
+                                                type="submit"
+                                                class="btn btn-sm btn-outline-success"
+                                            >
+                                                Activar
+                                            </button>
+
+                                        {% endif %}
+
+                                    </form>
+
+                                </div>
 
                             </td>
 
