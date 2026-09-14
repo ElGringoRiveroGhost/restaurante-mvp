@@ -1098,14 +1098,15 @@ def receta_producto(product_id):
         quantity = float(item.quantity)
         unit_cost = float(item.ingredient.cost)
         item_cost = quantity * unit_cost
-
+    
         recipe_cost_items.append({
+            "id": item.id,
             "ingredient": item.ingredient,
             "quantity": quantity,
             "unit_cost": unit_cost,
             "cost": item_cost
         })
-
+    
         total_cost += item_cost
 
     sale_price = float(product.price)
