@@ -205,75 +205,117 @@
     </div>
 
 
-    <!-- RECETA ACTUAL -->
+   <!-- RECETA ACTUAL -->
 
-    <div class="card shadow-sm">
+<div class="card shadow-sm mb-4">
 
-        <div class="card-body">
+    <div class="card-body">
 
-            <h5 class="mb-3">
-                📋 Ingredientes de la receta
-            </h5>
-
-
-            {% if recipe_items %}
-
-                <div class="table-responsive">
-
-                    <table class="table align-middle">
-
-                        <thead>
-
-                            <tr>
-
-                                <th>
-                                    Ingrediente
-                                </th>
-
-                                <th>
-                                    Unidad
-                                </th>
-
-                                <th>
-                                    Cantidad
-                                </th>
-
-                                <th class="text-end">
-                                    Acciones
-                                </th>
-
-                            </tr>
-
-                        </thead>
+        <h5 class="mb-3">
+            📋 Ingredientes de la receta
+        </h5>
 
 
-                        <tbody>
+        {% if recipe_items %}
 
-                        {% for item in recipe_items %}
+            <div class="table-responsive">
 
-                            <tr>
+                <table class="table align-middle">
 
-                                <td>
-                                    <strong>
-                                        {{ item.ingredient.name }}
-                                    </strong>
-                                </td>
+                    <thead>
 
-                                <td>
-                                    {{ item.ingredient.unit }}
-                                </td>
+                        <tr>
 
-                                <td>
+                            <th>
+                                Ingrediente
+                            </th>
+
+                            <th>
+                                Cantidad
+                            </th>
+
+                            <th>
+                                Unidad
+                            </th>
+
+                            <th>
+                                Costo unit.
+                            </th>
+
+                            <th>
+                                Costo
+                            </th>
+
+                            <th class="text-end">
+                                Acciones
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                    {% for item in recipe_cost_items %}
+
+                        <tr>
+
+                            <td>
+
+                                <strong>
+                                    {{ item.ingredient.name }}
+                                </strong>
+
+                            </td>
+
+
+                            <td>
+
+                                {{ "%.3f"|format(item.quantity) }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ item.ingredient.unit }}
+
+                            </td>
+
+
+                            <td>
+
+                                Bs {{ "%.2f"|format(item.unit_cost) }}
+
+                            </td>
+
+
+                            <td>
+
+                                <strong>
+                                    Bs {{ "%.2f"|format(item.cost) }}
+                                </strong>
+
+                            </td>
+
+
+                            <td class="text-end">
+
+                                <div class="d-flex justify-content-end gap-2 flex-wrap">
+
+
+                                    <!-- ACTUALIZAR CANTIDAD -->
 
                                     <form
                                         method="post"
                                         action="{{ url_for(
                                             'actualizar_ingrediente_receta',
                                             product_id=product.id,
-                                            recipe_item_id=item.id
+                                            recipe_item_id=item.ingredient.recipe_items[0].id
                                         ) }}"
                                         class="d-flex"
-                                        style="max-width:150px;"
+                                        style="max-width:160px;"
                                     >
 
                                         <input
@@ -288,64 +330,106 @@
                                         <button
                                             type="submit"
                                             class="btn btn-outline-primary ms-1"
-                                            title="Actualizar"
+                                            title="Actualizar cantidad"
                                         >
                                             ✓
                                         </button>
 
                                     </form>
 
-                                </td>
+                                </div>
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
 
 
-                                <td class="text-end">
+            <!-- TOTAL COSTO -->
 
-                                    <form
-                                        method="post"
-                                        action="{{ url_for(
-                                            'eliminar_ingrediente_receta',
-                                            product_id=product.id,
-                                            recipe_item_id=item.id
-                                        ) }}"
-                                        onsubmit="return confirm('¿Eliminar este ingrediente de la receta?');"
-                                    >
+            <div class="border-top pt-3 mt-3">
 
-                                        <button
-                                            type="submit"
-                                            class="btn btn-outline-danger btn-sm"
-                                        >
-                                            Eliminar
-                                        </button>
+                <div class="row justify-content-end">
 
-                                    </form>
+                    <div class="col-12 col-md-6">
 
-                                </td>
+                        <div class="d-flex justify-content-between mb-2">
 
-                            </tr>
+                            <span>
+                                Costo de ingredientes:
+                            </span>
 
-                        {% endfor %}
+                            <strong>
+                                Bs {{ "%.2f"|format(total_cost) }}
+                            </strong>
 
-                        </tbody>
+                        </div>
 
-                    </table>
+
+                        <div class="d-flex justify-content-between mb-2">
+
+                            <span>
+                                Precio de venta:
+                            </span>
+
+                            <strong>
+                                Bs {{ "%.2f"|format(sale_price) }}
+                            </strong>
+
+                        </div>
+
+
+                        <div class="d-flex justify-content-between mb-2">
+
+                            <span>
+                                Ganancia bruta:
+                            </span>
+
+                            <strong class="text-success">
+                                Bs {{ "%.2f"|format(profit) }}
+                            </strong>
+
+                        </div>
+
+
+                        <div class="d-flex justify-content-between">
+
+                            <span>
+                                Margen:
+                            </span>
+
+                            <strong>
+                                {{ "%.2f"|format(margin) }} %
+                            </strong>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
-            {% else %}
+            </div>
 
-                <div class="alert alert-secondary mb-0">
 
-                    Este producto todavía no tiene ingredientes
-                    configurados.
+        {% else %}
 
-                </div>
+            <div class="alert alert-secondary mb-0">
 
-            {% endif %}
+                Este producto todavía no tiene ingredientes
+                configurados.
 
-        </div>
+            </div>
+
+        {% endif %}
 
     </div>
-
 
 </div>
 
