@@ -39,7 +39,10 @@ elif database_url and database_url.startswith("postgresql://"):
     )
 
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///restaurante.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    database_url or
+    "sqlite:///restaurante.db"
+)
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -52,6 +55,7 @@ db = SQLAlchemy(app)
 # ============================================================
 
 PRODUCTS = {
+
     1: {
         "name": "Sándwich de Milanesa",
         "price": 20.00
@@ -61,6 +65,46 @@ PRODUCTS = {
         "name": "Choripán",
         "price": 18.00
     },
+
+}
+
+
+# ============================================================
+# ESTADOS DE PEDIDOS
+# ============================================================
+
+ORDER_STATUSES = {
+
+    "Pendiente": {
+        "label": "Pendiente",
+        "next": "En preparación"
+    },
+
+    "En preparación": {
+        "label": "En preparación",
+        "next": "Listo"
+    },
+
+    "Listo": {
+        "label": "Listo",
+        "next": "Enviado"
+    },
+
+    "Enviado": {
+        "label": "Enviado",
+        "next": "Entregado"
+    },
+
+    "Entregado": {
+        "label": "Entregado",
+        "next": None
+    },
+
+    "Cancelado": {
+        "label": "Cancelado",
+        "next": None
+    }
+
 }
 
 
@@ -122,7 +166,7 @@ class Order(db.Model):
 
 
 # ============================================================
-# MODELO DETALLE DEL PEDIDO
+# MODELO DETALLE PEDIDO
 # ============================================================
 
 class OrderItem(db.Model):
@@ -176,7 +220,7 @@ with app.app_context():
 
 
 # ============================================================
-# FUNCIÓN PARA CONVERTIR PEDIDO A DICCIONARIO
+# CONVERTIR PEDIDO A DICCIONARIO
 # ============================================================
 
 def order_to_dict(order):
@@ -415,14 +459,14 @@ def crear_pedido():
 
 
     # --------------------------------------------------------
-    # GUARDAR TODO
+    # GUARDAR
     # --------------------------------------------------------
 
     db.session.commit()
 
 
     # --------------------------------------------------------
-    # MOSTRAR CONFIRMACIÓN
+    # CONFIRMACIÓN
     # --------------------------------------------------------
 
     return render_template(
@@ -459,8 +503,81 @@ def pedidos():
 
         "pedidos.html",
 
-        orders=orders
+        orders=orders,
 
+        order_statuses=ORDER_STATUSES
+
+    )
+
+
+# ============================================================
+# CAMBIAR ESTADO DEL PEDIDO
+# ============================================================
+
+@app.post("/pedido/<int:order_id>/estado")
+def cambiar_estado(order_id):
+
+    order = db.session.get(
+        Order,
+        order_id
+    )
+
+
+    # --------------------------------------------------------
+    # VERIFICAR PEDIDO
+    # --------------------------------------------------------
+
+    if not order:
+
+        flash(
+            "El pedido no existe."
+        )
+
+        return redirect(
+            url_for("pedidos")
+        )
+
+
+    # --------------------------------------------------------
+    # NUEVO ESTADO
+    # --------------------------------------------------------
+
+    new_status = request.form.get(
+        "status"
+    )
+
+
+    # --------------------------------------------------------
+    # VALIDAR ESTADO
+    # --------------------------------------------------------
+
+    if new_status not in ORDER_STATUSES:
+
+        flash(
+            "Estado no válido."
+        )
+
+        return redirect(
+            url_for("pedidos")
+        )
+
+
+    # --------------------------------------------------------
+    # ACTUALIZAR
+    # --------------------------------------------------------
+
+    order.status = new_status
+
+    db.session.commit()
+
+
+    flash(
+        f"Pedido #{order.id} actualizado a: {new_status}"
+    )
+
+
+    return redirect(
+        url_for("pedidos")
     )
 
 
