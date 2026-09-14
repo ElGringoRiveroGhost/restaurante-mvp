@@ -1,9 +1,16 @@
 import os
-
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
-
 from datetime import datetime
+from decimal import Decimal
+
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash
+)
+from flask_sqlalchemy import SQLAlchemy
 
 
 # ============================================================
@@ -25,7 +32,6 @@ app.secret_key = os.environ.get(
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url and database_url.startswith("postgres://"):
-
     database_url = database_url.replace(
         "postgres://",
         "postgresql+psycopg://",
@@ -33,13 +39,11 @@ if database_url and database_url.startswith("postgres://"):
     )
 
 elif database_url and database_url.startswith("postgresql://"):
-
     database_url = database_url.replace(
         "postgresql://",
         "postgresql+psycopg://",
         1
     )
-
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     database_url or
@@ -47,7 +51,6 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 )
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 
 db = SQLAlchemy(app)
 
@@ -57,37 +60,30 @@ db = SQLAlchemy(app)
 # ============================================================
 
 ORDER_STATUSES = {
-
     "Pendiente": {
         "label": "Pendiente",
         "next": "En preparación"
     },
-
     "En preparación": {
         "label": "En preparación",
         "next": "Listo"
     },
-
     "Listo": {
         "label": "Listo",
         "next": "Enviado"
     },
-
     "Enviado": {
         "label": "Enviado",
         "next": "Entregado"
     },
-
     "Entregado": {
         "label": "Entregado",
         "next": None
     },
-
     "Cancelado": {
         "label": "Cancelado",
         "next": None
     }
-
 }
 
 
@@ -171,10 +167,19 @@ class Ingredient(db.Model):
         default=True
     )
 
+
+# ============================================================
+# MODELO RECETA
+# ============================================================
+
 class ProductIngredient(db.Model):
+
     __tablename__ = "product_ingredients"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     product_id = db.Column(
         db.Integer,
@@ -218,6 +223,8 @@ class ProductIngredient(db.Model):
             name="uq_product_ingredient"
         ),
     )
+
+
 # ============================================================
 # MODELO PEDIDO
 # ============================================================
@@ -276,7 +283,7 @@ class Order(db.Model):
 
 
 # ============================================================
-# MODELO DETALLE PEDIDO
+# MODELO DETALLE DEL PEDIDO
 # ============================================================
 
 class OrderItem(db.Model):
@@ -321,11 +328,62 @@ class OrderItem(db.Model):
 
 
 # ============================================================
+# MODELO MOVIMIENTO DE INVENTARIO
+# ============================================================
+
+class InventoryMovement(db.Model):
+
+    __tablename__ = "inventory_movements"
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    order_id = db.Column(
+        db.Integer,
+        db.ForeignKey("orders.id"),
+        nullable=False
+    )
+
+    product_id = db.Column(
+        db.Integer,
+        db.ForeignKey("products.id"),
+        nullable=False
+    )
+
+    ingredient_id = db.Column(
+        db.Integer,
+        db.ForeignKey("ingredients.id"),
+        nullable=False
+    )
+
+    quantity = db.Column(
+        db.Numeric(12, 3),
+        nullable=False
+    )
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "order_id",
+            "product_id",
+            "ingredient_id",
+            name="uq_inventory_order_product_ingredient"
+        ),
+    )
+
+
+# ============================================================
 # CREAR TABLAS
 # ============================================================
 
 with app.app_context():
-
     db.create_all()
 
 
@@ -336,21 +394,17 @@ with app.app_context():
 def inicializar_productos():
 
     productos_iniciales = [
-
         {
             "id": 1,
             "name": "Sándwich de Milanesa",
             "price": 20.00
         },
-
         {
             "id": 2,
             "name": "Choripán",
             "price": 18.00
         }
-
     ]
-
 
     for data in productos_iniciales:
 
@@ -359,29 +413,21 @@ def inicializar_productos():
             data["id"]
         )
 
-
         if not product:
 
             product = Product(
-
                 id=data["id"],
-
                 name=data["name"],
-
                 price=data["price"],
-
                 active=True
-
             )
 
             db.session.add(product)
-
 
     db.session.commit()
 
 
 with app.app_context():
-
     inicializar_productos()
 
 
@@ -395,49 +441,28 @@ def order_to_dict(order):
         order_id=order.id
     ).all()
 
-
     return {
-
         "id": order.id,
-
         "created_at": order.created_at.strftime(
             "%d/%m/%Y %H:%M"
         ),
-
         "name": order.name,
-
         "phone": order.phone,
-
         "address": order.address,
-
         "payment": order.payment,
-
         "notes": order.notes,
-
         "total": float(order.total),
-
         "status": order.status,
-
         "items": [
-
             {
-
                 "product_id": item.product_id,
-
                 "name": item.name,
-
                 "qty": item.qty,
-
                 "price": float(item.price),
-
                 "subtotal": float(item.subtotal)
-
             }
-
             for item in items
-
         ]
-
     }
 
 
@@ -454,13 +479,9 @@ def index():
         Product.id
     ).all()
 
-
     return render_template(
-
         "pedido.html",
-
         products=products
-
     )
 
 
@@ -496,7 +517,6 @@ def crear_pedido():
         ""
     ).strip()
 
-
     if not name or not phone:
 
         flash(
@@ -507,16 +527,12 @@ def crear_pedido():
             url_for("index")
         )
 
-
     products = Product.query.filter_by(
         active=True
     ).all()
 
-
     items = []
-
-    total = 0
-
+    total = Decimal("0")
 
     for product in products:
 
@@ -525,43 +541,29 @@ def crear_pedido():
             "0"
         )
 
-
         try:
-
             qty = max(
                 0,
                 int(qty_raw)
             )
 
-        except ValueError:
-
+        except (ValueError, TypeError):
             qty = 0
-
 
         if qty:
 
-            price = float(product.price)
-
-            subtotal = qty * price
-
+            price = Decimal(str(product.price))
+            subtotal = price * qty
 
             items.append({
-
                 "product_id": product.id,
-
                 "name": product.name,
-
                 "qty": qty,
-
                 "price": price,
-
                 "subtotal": subtotal
-
             })
 
-
             total += subtotal
-
 
     if not items:
 
@@ -573,61 +575,37 @@ def crear_pedido():
             url_for("index")
         )
 
-
     order = Order(
-
         name=name,
-
         phone=phone,
-
         address=address,
-
         payment=payment,
-
         notes=notes,
-
         total=total,
-
         status="Pendiente"
-
     )
 
-
     db.session.add(order)
-
     db.session.flush()
-
 
     for item in items:
 
         order_item = OrderItem(
-
             order_id=order.id,
-
             product_id=item["product_id"],
-
             name=item["name"],
-
             qty=item["qty"],
-
             price=item["price"],
-
             subtotal=item["subtotal"]
-
         )
 
         db.session.add(order_item)
 
-
     db.session.commit()
 
-
     return render_template(
-
         "confirmacion.html",
-
         order=order_to_dict(order)
-
     )
 
 
@@ -642,25 +620,122 @@ def pedidos():
         Order.created_at.desc()
     ).all()
 
-
     orders = [
-
         order_to_dict(order)
-
         for order in orders_db
-
     ]
 
-
     return render_template(
-
         "pedidos.html",
-
         orders=orders,
-
         order_statuses=ORDER_STATUSES
-
     )
+
+
+# ============================================================
+# DESCONTAR INVENTARIO SEGÚN LA RECETA
+# ============================================================
+
+def descontar_inventario_pedido(order):
+
+    order_items = OrderItem.query.filter_by(
+        order_id=order.id
+    ).all()
+
+    # --------------------------------------------------------
+    # ACUMULAR TODO EL CONSUMO POR INGREDIENTE
+    # --------------------------------------------------------
+
+    consumos = {}
+
+    for order_item in order_items:
+
+        recipe_items = ProductIngredient.query.filter_by(
+            product_id=order_item.product_id
+        ).all()
+
+        for recipe_item in recipe_items:
+
+            ingredient = recipe_item.ingredient
+
+            required_quantity = (
+                Decimal(str(recipe_item.quantity))
+                * order_item.qty
+            )
+
+            key = ingredient.id
+
+            if key not in consumos:
+
+                consumos[key] = {
+                    "ingredient": ingredient,
+                    "quantity": Decimal("0"),
+                    "items": []
+                }
+
+            consumos[key]["quantity"] += required_quantity
+
+            consumos[key]["items"].append({
+                "order_item": order_item,
+                "recipe_item": recipe_item,
+                "quantity": required_quantity
+            })
+
+    # --------------------------------------------------------
+    # VERIFICAR TODO EL STOCK ANTES DE DESCONTAR
+    # --------------------------------------------------------
+
+    for data in consumos.values():
+
+        ingredient = data["ingredient"]
+        required_quantity = data["quantity"]
+
+        current_stock = Decimal(
+            str(ingredient.stock)
+        )
+
+        if current_stock < required_quantity:
+
+            raise ValueError(
+                f"No hay suficiente stock de "
+                f"'{ingredient.name}'. "
+                f"Disponible: {current_stock:.3f} "
+                f"{ingredient.unit}. "
+                f"Necesario: {required_quantity:.3f} "
+                f"{ingredient.unit}."
+            )
+
+    # --------------------------------------------------------
+    # DESCONTAR INVENTARIO
+    # --------------------------------------------------------
+
+    for data in consumos.values():
+
+        ingredient = data["ingredient"]
+        total_quantity = data["quantity"]
+
+        ingredient.stock = (
+            Decimal(str(ingredient.stock))
+            - total_quantity
+        )
+
+        # Registrar cada producto/ingrediente
+        # consumido por el pedido
+
+        for item_data in data["items"]:
+
+            order_item = item_data["order_item"]
+            recipe_item = item_data["recipe_item"]
+            quantity = item_data["quantity"]
+
+            movement = InventoryMovement(
+                order_id=order.id,
+                product_id=order_item.product_id,
+                ingredient_id=recipe_item.ingredient_id,
+                quantity=quantity
+            )
+
+            db.session.add(movement)
 
 
 # ============================================================
@@ -675,7 +750,6 @@ def cambiar_estado(order_id):
         order_id
     )
 
-
     if not order:
 
         flash(
@@ -686,11 +760,9 @@ def cambiar_estado(order_id):
             url_for("pedidos")
         )
 
-
     new_status = request.form.get(
         "status"
     )
-
 
     if new_status not in ORDER_STATUSES:
 
@@ -702,16 +774,55 @@ def cambiar_estado(order_id):
             url_for("pedidos")
         )
 
+    # --------------------------------------------------------
+    # DESCONTAR INVENTARIO AL PASAR A EN PREPARACIÓN
+    # --------------------------------------------------------
+
+    if (
+        new_status == "En preparación"
+        and order.status != "En preparación"
+    ):
+
+        try:
+
+            # Comprobar si ya existe algún movimiento
+            # para este pedido.
+
+            existing_movement = (
+                InventoryMovement.query
+                .filter_by(
+                    order_id=order.id
+                )
+                .first()
+            )
+
+            if not existing_movement:
+
+                descontar_inventario_pedido(order)
+
+        except ValueError as e:
+
+            db.session.rollback()
+
+            flash(
+                str(e)
+            )
+
+            return redirect(
+                url_for("pedidos")
+            )
+
+    # --------------------------------------------------------
+    # ACTUALIZAR ESTADO
+    # --------------------------------------------------------
 
     order.status = new_status
 
     db.session.commit()
 
-
     flash(
         f"Pedido #{order.id} actualizado a: {new_status}"
     )
-
 
     return redirect(
         url_for("pedidos")
@@ -729,13 +840,9 @@ def productos():
         Product.id
     ).all()
 
-
     return render_template(
-
         "productos.html",
-
         products=products
-
     )
 
 
@@ -756,7 +863,6 @@ def nuevo_producto():
         "0"
     )
 
-
     if not name:
 
         flash(
@@ -767,12 +873,13 @@ def nuevo_producto():
             url_for("productos")
         )
 
-
     try:
 
-        price = float(price_raw)
+        price = Decimal(
+            str(price_raw)
+        )
 
-    except ValueError:
+    except Exception:
 
         flash(
             "El precio no es válido."
@@ -781,7 +888,6 @@ def nuevo_producto():
         return redirect(
             url_for("productos")
         )
-
 
     if price < 0:
 
@@ -793,11 +899,9 @@ def nuevo_producto():
             url_for("productos")
         )
 
-
     existing = Product.query.filter_by(
         name=name
     ).first()
-
 
     if existing:
 
@@ -809,27 +913,18 @@ def nuevo_producto():
             url_for("productos")
         )
 
-
     product = Product(
-
         name=name,
-
         price=price,
-
         active=True
-
     )
 
-
     db.session.add(product)
-
     db.session.commit()
-
 
     flash(
         f"Producto '{name}' creado correctamente."
     )
-
 
     return redirect(
         url_for("productos")
@@ -848,7 +943,6 @@ def estado_producto(product_id):
         product_id
     )
 
-
     if not product:
 
         flash(
@@ -859,11 +953,9 @@ def estado_producto(product_id):
             url_for("productos")
         )
 
-
     product.active = not product.active
 
     db.session.commit()
-
 
     estado = (
         "activado"
@@ -871,11 +963,9 @@ def estado_producto(product_id):
         else "desactivado"
     )
 
-
     flash(
         f"Producto '{product.name}' {estado}."
     )
-
 
     return redirect(
         url_for("productos")
@@ -893,13 +983,9 @@ def ingredientes():
         Ingredient.name
     ).all()
 
-
     return render_template(
-
         "ingredientes.html",
-
         ingredients=ingredients
-
     )
 
 
@@ -935,7 +1021,6 @@ def nuevo_ingrediente():
         "0"
     )
 
-
     if not name or not unit:
 
         flash(
@@ -946,16 +1031,21 @@ def nuevo_ingrediente():
             url_for("ingredientes")
         )
 
-
     try:
 
-        stock = float(stock_raw)
+        stock = Decimal(
+            str(stock_raw)
+        )
 
-        minimum_stock = float(minimum_raw)
+        minimum_stock = Decimal(
+            str(minimum_raw)
+        )
 
-        cost = float(cost_raw)
+        cost = Decimal(
+            str(cost_raw)
+        )
 
-    except ValueError:
+    except Exception:
 
         flash(
             "Los valores numéricos no son válidos."
@@ -965,8 +1055,11 @@ def nuevo_ingrediente():
             url_for("ingredientes")
         )
 
-
-    if stock < 0 or minimum_stock < 0 or cost < 0:
+    if (
+        stock < 0
+        or minimum_stock < 0
+        or cost < 0
+    ):
 
         flash(
             "Los valores no pueden ser negativos."
@@ -976,11 +1069,9 @@ def nuevo_ingrediente():
             url_for("ingredientes")
         )
 
-
     existing = Ingredient.query.filter_by(
         name=name
     ).first()
-
 
     if existing:
 
@@ -992,33 +1083,21 @@ def nuevo_ingrediente():
             url_for("ingredientes")
         )
 
-
     ingredient = Ingredient(
-
         name=name,
-
         unit=unit,
-
         stock=stock,
-
         minimum_stock=minimum_stock,
-
         cost=cost,
-
         active=True
-
     )
 
-
     db.session.add(ingredient)
-
     db.session.commit()
-
 
     flash(
         f"Ingrediente '{name}' creado correctamente."
     )
-
 
     return redirect(
         url_for("ingredientes")
@@ -1037,7 +1116,6 @@ def estado_ingrediente(ingredient_id):
         ingredient_id
     )
 
-
     if not ingredient:
 
         flash(
@@ -1048,11 +1126,9 @@ def estado_ingrediente(ingredient_id):
             url_for("ingredientes")
         )
 
-
     ingredient.active = not ingredient.active
 
     db.session.commit()
-
 
     estado = (
         "activado"
@@ -1060,23 +1136,36 @@ def estado_ingrediente(ingredient_id):
         else "desactivado"
     )
 
-
     flash(
         f"Ingrediente '{ingredient.name}' {estado}."
     )
-
 
     return redirect(
         url_for("ingredientes")
     )
 
+
+# ============================================================
+# RECETA DE PRODUCTO
+# ============================================================
+
 @app.route("/productos/<int:product_id>/receta")
 def receta_producto(product_id):
-    product = db.session.get(Product, product_id)
+
+    product = db.session.get(
+        Product,
+        product_id
+    )
 
     if not product:
-        flash("El producto no existe.")
-        return redirect(url_for("productos"))
+
+        flash(
+            "El producto no existe."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
 
     ingredients = Ingredient.query.filter_by(
         active=True
@@ -1090,32 +1179,57 @@ def receta_producto(product_id):
         ProductIngredient.id
     ).all()
 
-    # Calcular costos de la receta
+    # --------------------------------------------------------
+    # CALCULAR COSTOS DE LA RECETA
+    # --------------------------------------------------------
+
     recipe_cost_items = []
-    total_cost = 0.0
+    total_cost = Decimal("0")
 
     for item in recipe_items:
-        quantity = float(item.quantity)
-        unit_cost = float(item.ingredient.cost)
-        item_cost = quantity * unit_cost
-    
+
+        quantity = Decimal(
+            str(item.quantity)
+        )
+
+        unit_cost = Decimal(
+            str(item.ingredient.cost)
+        )
+
+        item_cost = (
+            quantity
+            * unit_cost
+        )
+
         recipe_cost_items.append({
             "id": item.id,
             "ingredient": item.ingredient,
-            "quantity": quantity,
-            "unit_cost": unit_cost,
-            "cost": item_cost
+            "quantity": float(quantity),
+            "unit_cost": float(unit_cost),
+            "cost": float(item_cost)
         })
-    
+
         total_cost += item_cost
 
-    sale_price = float(product.price)
-    profit = sale_price - total_cost
+    sale_price = Decimal(
+        str(product.price)
+    )
+
+    profit = (
+        sale_price
+        - total_cost
+    )
 
     if sale_price > 0:
-        margin = (profit / sale_price) * 100
+
+        margin = (
+            profit
+            / sale_price
+        ) * 100
+
     else:
-        margin = 0
+
+        margin = Decimal("0")
 
     return render_template(
         "receta.html",
@@ -1123,50 +1237,114 @@ def receta_producto(product_id):
         ingredients=ingredients,
         recipe_items=recipe_items,
         recipe_cost_items=recipe_cost_items,
-        total_cost=total_cost,
-        sale_price=sale_price,
-        profit=profit,
-        margin=margin
+        total_cost=float(total_cost),
+        sale_price=float(sale_price),
+        profit=float(profit),
+        margin=float(margin)
     )
-@app.post("/productos/<int:product_id>/receta/agregar")
+
+
+# ============================================================
+# AGREGAR INGREDIENTE A RECETA
+# ============================================================
+
+@app.post(
+    "/productos/<int:product_id>/receta/agregar"
+)
 def agregar_ingrediente_receta(product_id):
-    product = db.session.get(Product, product_id)
+
+    product = db.session.get(
+        Product,
+        product_id
+    )
 
     if not product:
-        flash("El producto no existe.")
-        return redirect(url_for("productos"))
 
-    ingredient_id_raw = request.form.get("ingredient_id", "")
-    quantity_raw = request.form.get("quantity", "0")
+        flash(
+            "El producto no existe."
+        )
+
+        return redirect(
+            url_for("productos")
+        )
+
+    ingredient_id_raw = request.form.get(
+        "ingredient_id",
+        ""
+    )
+
+    quantity_raw = request.form.get(
+        "quantity",
+        "0"
+    )
 
     try:
-        ingredient_id = int(ingredient_id_raw)
-    except ValueError:
-        flash("El ingrediente seleccionado no es válido.")
+
+        ingredient_id = int(
+            ingredient_id_raw
+        )
+
+    except (ValueError, TypeError):
+
+        flash(
+            "El ingrediente seleccionado no es válido."
+        )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     try:
-        quantity = float(quantity_raw)
-    except ValueError:
-        flash("La cantidad no es válida.")
+
+        quantity = Decimal(
+            str(quantity_raw)
+        )
+
+    except Exception:
+
+        flash(
+            "La cantidad no es válida."
+        )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     if quantity <= 0:
-        flash("La cantidad debe ser mayor a cero.")
-        return redirect(
-            url_for("receta_producto", product_id=product_id)
+
+        flash(
+            "La cantidad debe ser mayor a cero."
         )
 
-    ingredient = db.session.get(Ingredient, ingredient_id)
+        return redirect(
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
+        )
+
+    ingredient = db.session.get(
+        Ingredient,
+        ingredient_id
+    )
 
     if not ingredient or not ingredient.active:
-        flash("El ingrediente seleccionado no existe o está inactivo.")
+
+        flash(
+            "El ingrediente seleccionado no existe o está inactivo."
+        )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     existing = ProductIngredient.query.filter_by(
@@ -1175,11 +1353,17 @@ def agregar_ingrediente_receta(product_id):
     ).first()
 
     if existing:
+
         flash(
-            f"El ingrediente '{ingredient.name}' ya forma parte de la receta."
+            f"El ingrediente '{ingredient.name}' "
+            "ya forma parte de la receta."
         )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     recipe_item = ProductIngredient(
@@ -1192,75 +1376,157 @@ def agregar_ingrediente_receta(product_id):
     db.session.commit()
 
     flash(
-        f"'{ingredient.name}' agregado a la receta de '{product.name}'."
+        f"'{ingredient.name}' agregado a la receta "
+        f"de '{product.name}'."
     )
 
     return redirect(
-        url_for("receta_producto", product_id=product_id)
+        url_for(
+            "receta_producto",
+            product_id=product_id
+        )
     )
 
 
-@app.post("/productos/<int:product_id>/receta/<int:recipe_item_id>/eliminar")
-def eliminar_ingrediente_receta(product_id, recipe_item_id):
+# ============================================================
+# ELIMINAR INGREDIENTE DE RECETA
+# ============================================================
+
+@app.post(
+    "/productos/<int:product_id>/receta/"
+    "<int:recipe_item_id>/eliminar"
+)
+def eliminar_ingrediente_receta(
+    product_id,
+    recipe_item_id
+):
+
     recipe_item = db.session.get(
         ProductIngredient,
         recipe_item_id
     )
 
-    if not recipe_item or recipe_item.product_id != product_id:
-        flash("El ingrediente de la receta no existe.")
-        return redirect(
-            url_for("receta_producto", product_id=product_id)
+    if (
+        not recipe_item
+        or recipe_item.product_id != product_id
+    ):
+
+        flash(
+            "El ingrediente de la receta no existe."
         )
 
-    db.session.delete(recipe_item)
+        return redirect(
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
+        )
+
+    db.session.delete(
+        recipe_item
+    )
+
     db.session.commit()
 
-    flash("Ingrediente eliminado de la receta.")
+    flash(
+        "Ingrediente eliminado de la receta."
+    )
 
     return redirect(
-        url_for("receta_producto", product_id=product_id)
+        url_for(
+            "receta_producto",
+            product_id=product_id
+        )
     )
 
 
-@app.post("/productos/<int:product_id>/receta/<int:recipe_item_id>/actualizar")
-def actualizar_ingrediente_receta(product_id, recipe_item_id):
+# ============================================================
+# ACTUALIZAR INGREDIENTE DE RECETA
+# ============================================================
+
+@app.post(
+    "/productos/<int:product_id>/receta/"
+    "<int:recipe_item_id>/actualizar"
+)
+def actualizar_ingrediente_receta(
+    product_id,
+    recipe_item_id
+):
+
     recipe_item = db.session.get(
         ProductIngredient,
         recipe_item_id
     )
 
-    if not recipe_item or recipe_item.product_id != product_id:
-        flash("El ingrediente de la receta no existe.")
-        return redirect(
-            url_for("receta_producto", product_id=product_id)
+    if (
+        not recipe_item
+        or recipe_item.product_id != product_id
+    ):
+
+        flash(
+            "El ingrediente de la receta no existe."
         )
 
-    quantity_raw = request.form.get("quantity", "0")
+        return redirect(
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
+        )
+
+    quantity_raw = request.form.get(
+        "quantity",
+        "0"
+    )
 
     try:
-        quantity = float(quantity_raw)
-    except ValueError:
-        flash("La cantidad no es válida.")
+
+        quantity = Decimal(
+            str(quantity_raw)
+        )
+
+    except Exception:
+
+        flash(
+            "La cantidad no es válida."
+        )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     if quantity <= 0:
-        flash("La cantidad debe ser mayor a cero.")
+
+        flash(
+            "La cantidad debe ser mayor a cero."
+        )
+
         return redirect(
-            url_for("receta_producto", product_id=product_id)
+            url_for(
+                "receta_producto",
+                product_id=product_id
+            )
         )
 
     recipe_item.quantity = quantity
 
     db.session.commit()
 
-    flash("Cantidad actualizada correctamente.")
+    flash(
+        "Cantidad actualizada correctamente."
+    )
 
     return redirect(
-        url_for("receta_producto", product_id=product_id)
+        url_for(
+            "receta_producto",
+            product_id=product_id
+        )
     )
+
+
 # ============================================================
 # EJECUCIÓN LOCAL
 # ============================================================
