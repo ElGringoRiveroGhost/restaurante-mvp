@@ -171,7 +171,53 @@ class Ingredient(db.Model):
         default=True
     )
 
+class ProductIngredient(db.Model):
+    __tablename__ = "product_ingredients"
 
+    id = db.Column(db.Integer, primary_key=True)
+
+    product_id = db.Column(
+        db.Integer,
+        db.ForeignKey("products.id"),
+        nullable=False
+    )
+
+    ingredient_id = db.Column(
+        db.Integer,
+        db.ForeignKey("ingredients.id"),
+        nullable=False
+    )
+
+    quantity = db.Column(
+        db.Numeric(12, 3),
+        nullable=False,
+        default=0
+    )
+
+    product = db.relationship(
+        "Product",
+        backref=db.backref(
+            "recipe_items",
+            lazy=True,
+            cascade="all, delete-orphan"
+        )
+    )
+
+    ingredient = db.relationship(
+        "Ingredient",
+        backref=db.backref(
+            "recipe_items",
+            lazy=True
+        )
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "product_id",
+            "ingredient_id",
+            name="uq_product_ingredient"
+        ),
+    )
 # ============================================================
 # MODELO PEDIDO
 # ============================================================
@@ -1024,7 +1070,167 @@ def estado_ingrediente(ingredient_id):
         url_for("ingredientes")
     )
 
+@app.route("/productos/<int:product_id>/receta")
+def receta_producto(product_id):
+    product = db.session.get(Product, product_id)
 
+    if not product:
+        flash("El producto no existe.")
+        return redirect(url_for("productos"))
+
+    ingredients = Ingredient.query.filter_by(
+        active=True
+    ).order_by(
+        Ingredient.name
+    ).all()
+
+    recipe_items = ProductIngredient.query.filter_by(
+        product_id=product_id
+    ).order_by(
+        ProductIngredient.id
+    ).all()
+
+    return render_template(
+        "receta.html",
+        product=product,
+        ingredients=ingredients,
+        recipe_items=recipe_items
+    )
+
+
+@app.post("/productos/<int:product_id>/receta/agregar")
+def agregar_ingrediente_receta(product_id):
+    product = db.session.get(Product, product_id)
+
+    if not product:
+        flash("El producto no existe.")
+        return redirect(url_for("productos"))
+
+    ingredient_id_raw = request.form.get("ingredient_id", "")
+    quantity_raw = request.form.get("quantity", "0")
+
+    try:
+        ingredient_id = int(ingredient_id_raw)
+    except ValueError:
+        flash("El ingrediente seleccionado no es válido.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    try:
+        quantity = float(quantity_raw)
+    except ValueError:
+        flash("La cantidad no es válida.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    if quantity <= 0:
+        flash("La cantidad debe ser mayor a cero.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    ingredient = db.session.get(Ingredient, ingredient_id)
+
+    if not ingredient or not ingredient.active:
+        flash("El ingrediente seleccionado no existe o está inactivo.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    existing = ProductIngredient.query.filter_by(
+        product_id=product_id,
+        ingredient_id=ingredient_id
+    ).first()
+
+    if existing:
+        flash(
+            f"El ingrediente '{ingredient.name}' ya forma parte de la receta."
+        )
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    recipe_item = ProductIngredient(
+        product_id=product_id,
+        ingredient_id=ingredient_id,
+        quantity=quantity
+    )
+
+    db.session.add(recipe_item)
+    db.session.commit()
+
+    flash(
+        f"'{ingredient.name}' agregado a la receta de '{product.name}'."
+    )
+
+    return redirect(
+        url_for("receta_producto", product_id=product_id)
+    )
+
+
+@app.post("/productos/<int:product_id>/receta/<int:recipe_item_id>/eliminar")
+def eliminar_ingrediente_receta(product_id, recipe_item_id):
+    recipe_item = db.session.get(
+        ProductIngredient,
+        recipe_item_id
+    )
+
+    if not recipe_item or recipe_item.product_id != product_id:
+        flash("El ingrediente de la receta no existe.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    db.session.delete(recipe_item)
+    db.session.commit()
+
+    flash("Ingrediente eliminado de la receta.")
+
+    return redirect(
+        url_for("receta_producto", product_id=product_id)
+    )
+
+
+@app.post("/productos/<int:product_id>/receta/<int:recipe_item_id>/actualizar")
+def actualizar_ingrediente_receta(product_id, recipe_item_id):
+    recipe_item = db.session.get(
+        ProductIngredient,
+        recipe_item_id
+    )
+
+    if not recipe_item or recipe_item.product_id != product_id:
+        flash("El ingrediente de la receta no existe.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    quantity_raw = request.form.get("quantity", "0")
+
+    try:
+        quantity = float(quantity_raw)
+    except ValueError:
+        flash("La cantidad no es válida.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    if quantity <= 0:
+        flash("La cantidad debe ser mayor a cero.")
+        return redirect(
+            url_for("receta_producto", product_id=product_id)
+        )
+
+    recipe_item.quantity = quantity
+
+    db.session.commit()
+
+    flash("Cantidad actualizada correctamente.")
+
+    return redirect(
+        url_for("receta_producto", product_id=product_id)
+    )
 # ============================================================
 # EJECUCIÓN LOCAL
 # ============================================================
