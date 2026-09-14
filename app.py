@@ -1090,14 +1090,43 @@ def receta_producto(product_id):
         ProductIngredient.id
     ).all()
 
+    # Calcular costos de la receta
+    recipe_cost_items = []
+    total_cost = 0.0
+
+    for item in recipe_items:
+        quantity = float(item.quantity)
+        unit_cost = float(item.ingredient.cost)
+        item_cost = quantity * unit_cost
+
+        recipe_cost_items.append({
+            "ingredient": item.ingredient,
+            "quantity": quantity,
+            "unit_cost": unit_cost,
+            "cost": item_cost
+        })
+
+        total_cost += item_cost
+
+    sale_price = float(product.price)
+    profit = sale_price - total_cost
+
+    if sale_price > 0:
+        margin = (profit / sale_price) * 100
+    else:
+        margin = 0
+
     return render_template(
         "receta.html",
         product=product,
         ingredients=ingredients,
-        recipe_items=recipe_items
+        recipe_items=recipe_items,
+        recipe_cost_items=recipe_cost_items,
+        total_cost=total_cost,
+        sale_price=sale_price,
+        profit=profit,
+        margin=margin
     )
-
-
 @app.post("/productos/<int:product_id>/receta/agregar")
 def agregar_ingrediente_receta(product_id):
     product = db.session.get(Product, product_id)
