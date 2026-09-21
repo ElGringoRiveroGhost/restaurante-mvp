@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Nueva compra</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+</head>
+
+<body>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h1>➕ Nueva compra</h1>
+
+        <a
+            href="{{ url_for('compras') }}"
+            class="btn btn-outline-secondary"
+        >
+            ← Volver
+        </a>
+
+    </div>
+
+
+    {% with messages = get_flashed_messages() %}
+
+        {% if messages %}
+
+            {% for message in messages %}
+
+                <div class="alert alert-danger">
+
+                    {{ message }}
+
+                </div>
+
+            {% endfor %}
+
+        {% endif %}
+
+    {% endwith %}
+
+
+    <form
+        method="POST"
+        action="{{ url_for('nueva_compra') }}"
+    >
+
+        <div class="card mb-4">
+
+            <div class="card-header">
+
+                <strong>Información de la compra</strong>
+
+            </div>
+
+            <div class="card-body">
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Proveedor
+                        </label>
+
+                        <input
+                            type="text"
+                            name="supplier"
+                            class="form-control"
+                            required
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Número de factura
+                        </label>
+
+                        <input
+                            type="text"
+                            name="invoice_number"
+                            class="form-control"
+                        >
+
+                    </div>
+
+
+                    <div class="col-12 mb-3">
+
+                        <label class="form-label">
+                            Observaciones
+                        </label>
+
+                        <textarea
+                            name="notes"
+                            class="form-control"
+                            rows="2"
+                        ></textarea>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="card">
+
+            <div class="card-header">
+
+                <strong>Ingredientes comprados</strong>
+
+            </div>
+
+            <div class="card-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-bordered align-middle">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>Ingrediente</th>
+
+                                <th>Stock actual</th>
+
+                                <th>Unidad</th>
+
+                                <th>Cantidad comprada</th>
+
+                                <th>Costo unitario</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for ingredient in ingredients %}
+
+                                <tr>
+
+                                    <td>
+
+                                        <strong>
+                                            {{ ingredient.name }}
+                                        </strong>
+
+                                    </td>
+
+                                    <td>
+
+                                        {{ "%.3f"|format(
+                                            ingredient.stock|float
+                                        ) }}
+
+                                    </td>
+
+                                    <td>
+
+                                        {{ ingredient.unit }}
+
+                                    </td>
+
+                                    <td>
+
+                                        <input
+                                            type="number"
+                                            step="0.001"
+                                            min="0"
+                                            name="quantity_{{ ingredient.id }}"
+                                            class="form-control"
+                                            value="0"
+                                        >
+
+                                    </td>
+
+                                    <td>
+
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            name="cost_{{ ingredient.id }}"
+                                            class="form-control"
+                                            value="{{ '%.2f'|format(ingredient.cost|float) }}"
+                                        >
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <div class="alert alert-warning">
+
+                    <strong>Importante:</strong>
+
+                    al confirmar la compra, las cantidades ingresadas
+                    se sumarán automáticamente al inventario.
+
+                </div>
+
+
+                <div class="d-flex justify-content-end">
+
+                    <button
+                        type="submit"
+                        class="btn btn-success btn-lg"
+                    >
+                        ✅ Confirmar compra
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </form>
+
+</div>
+
+</body>
+
+</html>
