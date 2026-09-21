@@ -326,7 +326,105 @@ class OrderItem(db.Model):
         nullable=False
     )
 
+# ============================================================
+# MODELO COMPRA
+# ============================================================
 
+class Purchase(db.Model):
+
+    __tablename__ = "purchases"
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    supplier = db.Column(
+        db.String(150),
+        nullable=False
+    )
+
+    invoice_number = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
+    notes = db.Column(
+        db.Text,
+        nullable=True
+    )
+
+    total = db.Column(
+        db.Numeric(12, 2),
+        nullable=False,
+        default=0
+    )
+
+    status = db.Column(
+        db.String(30),
+        nullable=False,
+        default="Confirmada"
+    )
+
+
+# ============================================================
+# MODELO DETALLE DE COMPRA
+# ============================================================
+
+class PurchaseItem(db.Model):
+
+    __tablename__ = "purchase_items"
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    purchase_id = db.Column(
+        db.Integer,
+        db.ForeignKey("purchases.id"),
+        nullable=False
+    )
+
+    ingredient_id = db.Column(
+        db.Integer,
+        db.ForeignKey("ingredients.id"),
+        nullable=False
+    )
+
+    quantity = db.Column(
+        db.Numeric(12, 3),
+        nullable=False
+    )
+
+    unit_cost = db.Column(
+        db.Numeric(12, 2),
+        nullable=False
+    )
+
+    subtotal = db.Column(
+        db.Numeric(12, 2),
+        nullable=False
+    )
+
+    purchase = db.relationship(
+        "Purchase",
+        backref=db.backref(
+            "items",
+            lazy=True,
+            cascade="all, delete-orphan"
+        )
+    )
+
+    ingredient = db.relationship(
+        "Ingredient"
+    )
 # ============================================================
 # MODELO MOVIMIENTO DE INVENTARIO
 # ============================================================
@@ -828,7 +926,183 @@ def cambiar_estado(order_id):
         url_for("pedidos")
     )
 
+# ============================================================
+# COMPRAS
+# ============================================================
 
+@app.route("/compras")
+def compras():
+
+    purchases = Purchase.query.order_by(
+        Purchase.created_at.desc()
+    ).all()
+
+    return render_template(
+        "compras.html",
+        purchases=purchases
+    )
+
+# ============================================================
+# NUEVA COMPRA
+# ============================================================
+
+@app.route("/compras/nueva", methods=["GET", "POST"])
+def nueva_compra():
+
+    ingredients = Ingredient.query.filter_by(
+        active=True
+    ).order_by(
+        Ingredient.name
+    ).all()
+
+    if request.method == "GET":
+
+        return render_template(
+            "nueva_compra.html",
+            ingredients=ingredients
+        )
+
+    supplier = request.form.get(
+        "supplier",
+        ""
+    ).strip()
+
+    invoice_number = request.form.get(
+        "invoice_number",
+        ""
+    ).strip()
+
+    notes = request.form.get(
+        "notes",
+        ""
+    ).strip()
+
+    if not supplier:
+
+        flash(
+            "El proveedor es obligatorio."
+        )
+
+        return redirect(
+            url_for("nueva_compra")
+        )
+
+    items = []
+    total = Decimal("0")
+
+    for ingredient in ingredients:
+
+        quantity_raw = request.form.get(
+            f"quantity_{ingredient.id}",
+            "0"
+        )
+
+        cost_raw = request.form.get(
+            f"cost_{ingredient.id}",
+            "0"
+        )
+
+        try:
+
+            quantity = Decimal(
+                str(quantity_raw)
+            )
+
+            unit_cost = Decimal(
+                str(cost_raw)
+            )
+
+        except Exception:
+
+            flash(
+                f"Los valores de "
+                f"'{ingredient.name}' no son válidos."
+            )
+
+            return redirect(
+                url_for("nueva_compra")
+            )
+
+        if quantity < 0 or unit_cost < 0:
+
+            flash(
+                f"Los valores de "
+                f"'{ingredient.name}' no pueden ser negativos."
+            )
+
+            return redirect(
+                url_for("nueva_compra")
+            )
+
+        if quantity > 0:
+
+            subtotal = quantity * unit_cost
+
+            items.append({
+                "ingredient": ingredient,
+                "quantity": quantity,
+                "unit_cost": unit_cost,
+                "subtotal": subtotal
+            })
+
+            total += subtotal
+
+    if not items:
+
+        flash(
+            "Debes ingresar al menos un ingrediente."
+        )
+
+        return redirect(
+            url_for("nueva_compra")
+        )
+
+    purchase = Purchase(
+        supplier=supplier,
+        invoice_number=invoice_number,
+        notes=notes,
+        total=total,
+        status="Confirmada"
+    )
+
+    db.session.add(purchase)
+
+    db.session.flush()
+
+    for item in items:
+
+        ingredient = item["ingredient"]
+
+        purchase_item = PurchaseItem(
+            purchase_id=purchase.id,
+            ingredient_id=ingredient.id,
+            quantity=item["quantity"],
+            unit_cost=item["unit_cost"],
+            subtotal=item["subtotal"]
+        )
+
+        db.session.add(purchase_item)
+
+        # AUMENTAR INVENTARIO
+        ingredient.stock = (
+            Decimal(str(ingredient.stock))
+            + item["quantity"]
+        )
+
+        # ACTUALIZAR COSTO DEL INGREDIENTE
+        ingredient.cost = item["unit_cost"]
+
+    db.session.commit()
+
+    flash(
+        f"Compra #{purchase.id} registrada correctamente. "
+        f"Inventario actualizado."
+    )
+
+    return redirect(
+        url_for("compras")
+    )
+    
 # ============================================================
 # PRODUCTOS
 # ============================================================
