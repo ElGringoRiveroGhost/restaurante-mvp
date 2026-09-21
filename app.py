@@ -426,7 +426,7 @@ class PurchaseItem(db.Model):
         "Ingredient"
     )
 # ============================================================
-# MODELO MOVIMIENTO DE INVENTARIO
+# MODELO MOVIMIENTO DE INVENTARIO / KARDEX
 # ============================================================
 
 class InventoryMovement(db.Model):
@@ -438,27 +438,59 @@ class InventoryMovement(db.Model):
         primary_key=True
     )
 
-    order_id = db.Column(
-        db.Integer,
-        db.ForeignKey("orders.id"),
-        nullable=False
-    )
-
-    product_id = db.Column(
-        db.Integer,
-        db.ForeignKey("products.id"),
-        nullable=False
-    )
-
     ingredient_id = db.Column(
         db.Integer,
         db.ForeignKey("ingredients.id"),
         nullable=False
     )
 
+    movement_type = db.Column(
+        db.String(30),
+        nullable=False
+    )
+
+    reference_id = db.Column(
+        db.Integer,
+        nullable=True
+    )
+
+    reference_type = db.Column(
+        db.String(30),
+        nullable=True
+    )
+
     quantity = db.Column(
         db.Numeric(12, 3),
         nullable=False
+    )
+
+    unit_cost = db.Column(
+        db.Numeric(12, 2),
+        nullable=False,
+        default=0
+    )
+
+    total_cost = db.Column(
+        db.Numeric(12, 2),
+        nullable=False,
+        default=0
+    )
+
+    stock_before = db.Column(
+        db.Numeric(12, 3),
+        nullable=False,
+        default=0
+    )
+
+    stock_after = db.Column(
+        db.Numeric(12, 3),
+        nullable=False,
+        default=0
+    )
+
+    notes = db.Column(
+        db.Text,
+        nullable=True
     )
 
     created_at = db.Column(
@@ -467,15 +499,13 @@ class InventoryMovement(db.Model):
         nullable=False
     )
 
-    __table_args__ = (
-        db.UniqueConstraint(
-            "order_id",
-            "product_id",
-            "ingredient_id",
-            name="uq_inventory_order_product_ingredient"
-        ),
+    ingredient = db.relationship(
+        "Ingredient",
+        backref=db.backref(
+            "inventory_movements",
+            lazy=True
+        )
     )
-
 
 # ============================================================
 # CREAR TABLAS
@@ -484,7 +514,100 @@ class InventoryMovement(db.Model):
 with app.app_context():
     db.create_all()
 
+# ============================================================
+# REGISTRAR MOVIMIENTO DE INVENTARIO
+# ============================================================
 
+def registrar_movimiento_inventario(
+    ingredient,
+    movement_type,
+    quantity,
+    unit_cost=Decimal("0"),
+    reference_id=None,
+    reference_type=None,
+    notes=None
+):
+
+    quantity = Decimal(str(quantity))
+    unit_cost = Decimal(str(unit_cost))
+
+    if quantity <= 0:
+
+        raise ValueError(
+            "La cantidad del movimiento debe ser mayor a cero."
+        )
+
+    stock_before = Decimal(
+        str(ingredient.stock)
+    )
+
+    # --------------------------------------------------------
+    # DETERMINAR SI ES ENTRADA O SALIDA
+    # --------------------------------------------------------
+
+    entradas = {
+        "COMPRA",
+        "AJUSTE_ENTRADA",
+        "DEVOLUCION"
+    }
+
+    salidas = {
+        "VENTA",
+        "AJUSTE_SALIDA"
+    }
+
+    if movement_type in entradas:
+
+        stock_after = (
+            stock_before + quantity
+        )
+
+    elif movement_type in salidas:
+
+        if stock_before < quantity:
+
+            raise ValueError(
+                f"No hay suficiente stock de "
+                f"'{ingredient.name}'. "
+                f"Disponible: {stock_before:.3f} "
+                f"{ingredient.unit}. "
+                f"Necesario: {quantity:.3f} "
+                f"{ingredient.unit}."
+            )
+
+        stock_after = (
+            stock_before - quantity
+        )
+
+    else:
+
+        raise ValueError(
+            f"Tipo de movimiento no válido: "
+            f"{movement_type}"
+        )
+
+    total_cost = (
+        quantity * unit_cost
+    )
+
+    movement = InventoryMovement(
+        ingredient_id=ingredient.id,
+        movement_type=movement_type,
+        reference_id=reference_id,
+        reference_type=reference_type,
+        quantity=quantity,
+        unit_cost=unit_cost,
+        total_cost=total_cost,
+        stock_before=stock_before,
+        stock_after=stock_after,
+        notes=notes
+    )
+
+    ingredient.stock = stock_after
+
+    db.session.add(movement)
+
+    return movement
 # ============================================================
 # PRODUCTOS INICIALES
 # ============================================================
@@ -825,15 +948,18 @@ def descontar_inventario_pedido(order):
             order_item = item_data["order_item"]
             recipe_item = item_data["recipe_item"]
             quantity = item_data["quantity"]
-
-            movement = InventoryMovement(
-                order_id=order.id,
-                product_id=order_item.product_id,
-                ingredient_id=recipe_item.ingredient_id,
-                quantity=quantity
+        
+            ingredient = recipe_item.ingredient
+        
+            registrar_movimiento_inventario(
+                ingredient=ingredient,
+                movement_type="VENTA",
+                quantity=quantity,
+                unit_cost=ingredient.cost,
+                reference_id=order.id,
+                reference_type="PEDIDO",
+                notes=f"Consumo por Pedido #{order.id}"
             )
-
-            db.session.add(movement)
 
 
 # ============================================================
@@ -1084,12 +1210,16 @@ def nueva_compra():
         db.session.add(purchase_item)
 
         # AUMENTAR INVENTARIO
-        ingredient.stock = (
-            Decimal(str(ingredient.stock))
-            + item["quantity"]
+        registrar_movimiento_inventario(
+            ingredient=ingredient,
+            movement_type="COMPRA",
+            quantity=item["quantity"],
+            unit_cost=item["unit_cost"],
+            reference_id=purchase.id,
+            reference_type="COMPRA",
+            notes=f"Compra #{purchase.id}"
         )
 
-        # ACTUALIZAR COSTO DEL INGREDIENTE
         ingredient.cost = item["unit_cost"]
 
     db.session.commit()
@@ -1800,6 +1930,52 @@ def actualizar_ingrediente_receta(
         )
     )
 
+    # ============================================================
+    # KARDEX GENERAL
+    # ============================================================
+    
+    @app.route("/kardex")
+    def kardex():
+    
+        ingredient_id = request.args.get(
+            "ingredient_id",
+            type=int
+        )
+    
+        movement_type = request.args.get(
+            "movement_type",
+            ""
+        ).strip()
+    
+        ingredients = Ingredient.query.order_by(
+            Ingredient.name
+        ).all()
+    
+        query = InventoryMovement.query
+    
+        if ingredient_id:
+    
+            query = query.filter_by(
+                ingredient_id=ingredient_id
+            )
+    
+        if movement_type:
+    
+            query = query.filter_by(
+                movement_type=movement_type
+            )
+    
+        movements = query.order_by(
+            InventoryMovement.created_at.desc()
+        ).all()
+    
+        return render_template(
+            "kardex.html",
+            movements=movements,
+            ingredients=ingredients,
+            selected_ingredient=ingredient_id,
+            selected_type=movement_type
+        )
 
 # ============================================================
 # EJECUCIÓN LOCAL
