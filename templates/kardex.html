@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Kardex de Inventario</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+</head>
+
+<body>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h1>📊 Kardex de Inventario</h1>
+
+        <div>
+
+            <a
+                href="{{ url_for('ingredientes') }}"
+                class="btn btn-outline-primary"
+            >
+                Inventario
+            </a>
+
+            <a
+                href="{{ url_for('compras') }}"
+                class="btn btn-outline-success"
+            >
+                Compras
+            </a>
+
+            <a
+                href="{{ url_for('pedidos') }}"
+                class="btn btn-outline-secondary"
+            >
+                Pedidos
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <!-- FILTROS -->
+
+    <div class="card mb-4">
+
+        <div class="card-header">
+
+            <strong>Filtros</strong>
+
+        </div>
+
+        <div class="card-body">
+
+            <form
+                method="GET"
+                action="{{ url_for('kardex') }}"
+                class="row g-3"
+            >
+
+                <div class="col-md-5">
+
+                    <label class="form-label">
+                        Ingrediente
+                    </label>
+
+                    <select
+                        name="ingredient_id"
+                        class="form-select"
+                    >
+
+                        <option value="">
+                            Todos
+                        </option>
+
+                        {% for ingredient in ingredients %}
+
+                            <option
+                                value="{{ ingredient.id }}"
+                                {% if selected_ingredient == ingredient.id %}
+                                    selected
+                                {% endif %}
+                            >
+
+                                {{ ingredient.name }}
+
+                            </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+                <div class="col-md-4">
+
+                    <label class="form-label">
+                        Tipo de movimiento
+                    </label>
+
+                    <select
+                        name="movement_type"
+                        class="form-select"
+                    >
+
+                        <option value="">
+                            Todos
+                        </option>
+
+                        <option
+                            value="COMPRA"
+                            {% if selected_type == "COMPRA" %}
+                                selected
+                            {% endif %}
+                        >
+                            Compra
+                        </option>
+
+                        <option
+                            value="VENTA"
+                            {% if selected_type == "VENTA" %}
+                                selected
+                            {% endif %}
+                        >
+                            Venta
+                        </option>
+
+                        <option
+                            value="AJUSTE_ENTRADA"
+                            {% if selected_type == "AJUSTE_ENTRADA" %}
+                                selected
+                            {% endif %}
+                        >
+                            Ajuste entrada
+                        </option>
+
+                        <option
+                            value="AJUSTE_SALIDA"
+                            {% if selected_type == "AJUSTE_SALIDA" %}
+                                selected
+                            {% endif %}
+                        >
+                            Ajuste salida
+                        </option>
+
+                        <option
+                            value="DEVOLUCION"
+                            {% if selected_type == "DEVOLUCION" %}
+                                selected
+                            {% endif %}
+                        >
+                            Devolución
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="col-md-3 d-flex align-items-end">
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary me-2"
+                    >
+                        🔎 Filtrar
+                    </button>
+
+                    <a
+                        href="{{ url_for('kardex') }}"
+                        class="btn btn-outline-secondary"
+                    >
+                        Limpiar
+                    </a>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- TABLA -->
+
+    <div class="card">
+
+        <div class="card-header">
+
+            <strong>
+                Movimientos de inventario
+            </strong>
+
+        </div>
+
+        <div class="card-body p-0">
+
+            <div class="table-responsive">
+
+                <table class="table table-bordered table-hover mb-0">
+
+                    <thead class="table-dark">
+
+                        <tr>
+
+                            <th>Fecha</th>
+
+                            <th>Ingrediente</th>
+
+                            <th>Tipo</th>
+
+                            <th>Referencia</th>
+
+                            <th>Entrada</th>
+
+                            <th>Salida</th>
+
+                            <th>Costo unit.</th>
+
+                            <th>Costo total</th>
+
+                            <th>Saldo</th>
+
+                            <th>Observaciones</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for movement in movements %}
+
+                            <tr>
+
+                                <td>
+
+                                    {{ movement.created_at.strftime(
+                                        "%d/%m/%Y %H:%M"
+                                    ) }}
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ movement.ingredient.name }}
+
+                                </td>
+
+
+                                <td>
+
+                                    {% if movement.movement_type == "COMPRA" %}
+
+                                        <span class="badge bg-success">
+                                            COMPRA
+                                        </span>
+
+                                    {% elif movement.movement_type == "VENTA" %}
+
+                                        <span class="badge bg-danger">
+                                            VENTA
+                                        </span>
+
+                                    {% elif movement.movement_type == "AJUSTE_ENTRADA" %}
+
+                                        <span class="badge bg-primary">
+                                            AJUSTE ENTRADA
+                                        </span>
+
+                                    {% elif movement.movement_type == "AJUSTE_SALIDA" %}
+
+                                        <span class="badge bg-warning text-dark">
+                                            AJUSTE SALIDA
+                                        </span>
+
+                                    {% else %}
+
+                                        <span class="badge bg-secondary">
+                                            {{ movement.movement_type }}
+                                        </span>
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                <td>
+
+                                    {% if movement.reference_type %}
+
+                                        {{ movement.reference_type }}
+                                        #{{ movement.reference_id }}
+
+                                    {% else %}
+
+                                        -
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                <td class="text-success">
+
+                                    {% if movement.movement_type in [
+                                        "COMPRA",
+                                        "AJUSTE_ENTRADA",
+                                        "DEVOLUCION"
+                                    ] %}
+
+                                        +{{ "%.3f"|format(
+                                            movement.quantity|float
+                                        ) }}
+
+                                    {% else %}
+
+                                        -
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                <td class="text-danger">
+
+                                    {% if movement.movement_type in [
+                                        "VENTA",
+                                        "AJUSTE_SALIDA"
+                                    ] %}
+
+                                        -{{ "%.3f"|format(
+                                            movement.quantity|float
+                                        ) }}
+
+                                    {% else %}
+
+                                        -
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                <td>
+
+                                    Bs {{ "%.2f"|format(
+                                        movement.unit_cost|float
+                                    ) }}
+
+                                </td>
+
+
+                                <td>
+
+                                    Bs {{ "%.2f"|format(
+                                        movement.total_cost|float
+                                    ) }}
+
+                                </td>
+
+
+                                <td>
+
+                                    <strong>
+
+                                        {{ "%.3f"|format(
+                                            movement.stock_after|float
+                                        ) }}
+
+                                        {{ movement.ingredient.unit }}
+
+                                    </strong>
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ movement.notes or "-" }}
+
+                                </td>
+
+                            </tr>
+
+                        {% else %}
+
+                            <tr>
+
+                                <td
+                                    colspan="10"
+                                    class="text-center py-4"
+                                >
+
+                                    No existen movimientos registrados.
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+
+</html>
