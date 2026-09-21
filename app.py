@@ -1929,7 +1929,21 @@ def actualizar_ingrediente_receta(
             product_id=product_id
         )
     )
-
+    # ============================================================
+    # CONTROL DE INVENTARIO
+    # ============================================================
+    
+    @app.route("/inventario")
+    def control_inventario():
+    
+        ingredients = Ingredient.query.order_by(
+            Ingredient.name
+        ).all()
+    
+        return render_template(
+            "inventario_control.html",
+            ingredients=ingredients
+        )
     # ============================================================
     # KARDEX GENERAL
     # ============================================================
